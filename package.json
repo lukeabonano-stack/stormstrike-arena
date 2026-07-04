@@ -1,0 +1,12 @@
+{
+  "name": "weaponstrike-arena",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "start": "vite"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}

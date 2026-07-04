@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Weaponstrike Arena</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="overlay">
+    <div id="title">Weaponstrike Arena</div>
+    <div id="status">Tap/click to shoot &bull; WASD + mouse / on-screen controls</div>
+    <div id="hud">
+      <span id="health">Health: 100</span>
+      <span id="score">Score: 0</span>
+      <span id="coins">Coins: 0</span>
+      <span id="level">Level: 1</span>
+      <span id="weapon">Weapon: Sniper Rifle</span>
+      <div id="cooldown-bar"><div id="cooldown-fill"></div></div>
+      <span id="killstreak" class="hidden">Streak: 0</span>
+      <div id="emote-menu">
+        <button id="emote-button" aria-label="Emotes" title="Emotes">🎭</button>
+        <div id="emote-flyout" class="hidden"></div>
+      </div>
+      <button id="mute-button" aria-label="Toggle sound" title="Toggle sound">🔊</button>
+      <button id="vip-toggle-button" class="hidden" aria-label="Switch character" title="Switch character (G)">🗽</button>
+    </div>
+    <div id="powerup-bar"></div>
+    <div id="boss-bar" class="hidden">
+      <div id="boss-bar-label">BOSS</div>
+      <div id="boss-bar-track"><div id="boss-bar-fill"></div></div>
+    </div>
+    <div id="minimap">
+      <canvas id="minimap-canvas" width="180" height="180"></canvas>
+      <div id="minimap-label">Map</div>
+    </div>
+    <div id="message" class="hidden"></div>
+    <div id="damage-flash"></div>
+  </div>
+
+  <div id="start-screen">
+    <div id="start-title">Weaponstrike Arena</div>
+    <div id="start-text">Press Start Game to enter A detailed, texture, and super fun battle world.</div>
+    <div id="start-buttons">
+      <button id="start-button">Start Game</button>
+      <button id="armory-button">Armory</button>
+    </div>
+  </div>
+
+  <div id="armory-screen" class="hidden">
+    <div id="armory-panel">
+      <div id="armory-topbar">
+        <div id="armory-title">Armory</div>
+        <div id="armory-coins">Coins: 0</div>
+        <button id="armory-close" aria-label="Close armory" title="Close">✕</button>
+      </div>
+      <div id="armory-body">
+        <div id="armory-tabs">
+          <button class="armory-tab" data-tab="weapons">Weapons</button>
+          <button class="armory-tab" data-tab="skins">Skins</button>
+          <button class="armory-tab" data-tab="clothes">Clothes</button>
+          <button class="armory-tab" data-tab="armor">Armor</button>
+          <button class="armory-tab" data-tab="emotes">Emotes</button>
+          <button class="armory-tab" data-tab="vip">VIP</button>
+        </div>
+        <div id="armory-main">
+          <div id="armory-preview-wrap">
+            <canvas id="armory-preview-canvas" width="320" height="360"></canvas>
+          </div>
+          <div id="armory-grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="map-picker-screen" class="hidden">
+    <div id="map-picker-panel">
+      <div id="map-picker-topbar">
+        <div id="map-picker-title">Choose Your Battleground</div>
+      </div>
+      <div id="map-picker-timer-row">
+        <div id="map-picker-timer-track"><div id="map-picker-timer-fill"></div></div>
+        <div id="map-picker-timer-label">30</div>
+      </div>
+      <div id="map-picker-grid"></div>
+    </div>
+  </div>
+
+  <div id="touch-controls" class="hidden">
+    <div class="touch-row">
+      <button class="touch-button" id="move-forward">↑</button>
+    </div>
+    <div class="touch-row">
+      <button class="touch-button" id="move-left">←</button>
+      <button class="touch-button" id="move-back">↓</button>
+      <button class="touch-button" id="move-right">→</button>
+    </div>
+    <div class="touch-row">
+      <button class="touch-button action" id="shoot-button">Shoot</button>
+    </div>
+  </div>
+
+  <div id="instructions">Click/tap the screen to enable controls.</div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
