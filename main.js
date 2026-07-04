@@ -4399,6 +4399,7 @@ function createCombatTextTexture(text, color) {
 }
 
 const activeFloatingTexts = [];
+const activeSpeechBubbles = [];
 
 function spawnFloatingText(text, position, color) {
   const texture = createCombatTextTexture(text, `#${color.toString(16).padStart(6, '0')}`);
@@ -4439,6 +4440,7 @@ function getScreenShakeOffset(dt) {
 function updateEffects(dt) {
   updateParticles(dt);
   updateFloatingTexts(dt);
+  updateSpeechBubbles(dt);
   updatePowerups(dt);
   updateBuffTimers(dt);
   updateCooldownBar();
@@ -5789,6 +5791,250 @@ if (systemTouch) {
 startButton.addEventListener('click', showMapPicker);
 
 updateUI();
+
+// --- Voice-to-text enemy conversation ---
+
+const voiceBtn = document.getElementById('voice-btn');
+let voiceListening = false;
+let voiceRecognition = null;
+let voiceBusy = false;
+
+function getClaudeApiKey() {
+  let key = localStorage.getItem('sniperstrike-claude-key');
+  if (!key) {
+    key = window.prompt('Enter your Anthropic API key to enable enemy conversations:\n(saved locally, only sent to Anthropic)');
+    if (key && key.trim()) {
+      localStorage.setItem('sniperstrike-claude-key', key.trim());
+    }
+  }
+  return key ? key.trim() : null;
+}
+
+function createSpeechBubbleTexture(text, isPlayer) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 152;
+  const ctx = canvas.getContext('2d');
+
+  const bgColor = isPlayer ? 'rgba(20, 70, 190, 0.88)' : 'rgba(170, 25, 25, 0.88)';
+  const borderColor = isPlayer ? 'rgba(120, 180, 255, 0.95)' : 'rgba(255, 110, 80, 0.95)';
+  const rx = 16;
+  const bh = canvas.height - 22;
+
+  ctx.fillStyle = bgColor;
+  ctx.beginPath();
+  ctx.moveTo(rx, 8); ctx.lineTo(canvas.width - rx, 8);
+  ctx.quadraticCurveTo(canvas.width - 8, 8, canvas.width - 8, rx);
+  ctx.lineTo(canvas.width - 8, bh - rx);
+  ctx.quadraticCurveTo(canvas.width - 8, bh, canvas.width - rx, bh);
+  const tailX = isPlayer ? 72 : canvas.width - 72;
+  ctx.lineTo(tailX + 20, bh);
+  ctx.lineTo(tailX, canvas.height - 4);
+  ctx.lineTo(tailX - 20, bh);
+  ctx.lineTo(rx, bh);
+  ctx.quadraticCurveTo(8, bh, 8, bh - rx);
+  ctx.lineTo(8, rx);
+  ctx.quadraticCurveTo(8, 8, rx, 8);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 26px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const maxW = canvas.width - 48;
+  const words = text.split(' ');
+  const lines = [];
+  let cur = '';
+  for (const word of words) {
+    const test = cur ? cur + ' ' + word : word;
+    if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = word; }
+    else cur = test;
+  }
+  if (cur) lines.push(cur);
+  const lineH = 32;
+  const startY = (bh + 8) / 2 - (lines.length * lineH) / 2 + lineH / 2;
+  lines.forEach((line, i) => ctx.fillText(line, canvas.width / 2, startY + i * lineH));
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  return tex;
+}
+
+function spawnSpeechBubble(text, position, isPlayer, duration = 5) {
+  const tex = createSpeechBubbleTexture(text, isPlayer);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(4.2, 1.25, 1);
+  sprite.position.copy(position).add(new THREE.Vector3(0, 2.8, 0));
+  scene.add(sprite);
+  activeSpeechBubbles.push({ sprite, life: 0, maxLife: duration });
+}
+
+function updateSpeechBubbles(dt) {
+  for (let i = activeSpeechBubbles.length - 1; i >= 0; i--) {
+    const b = activeSpeechBubbles[i];
+    b.life += dt;
+    if (b.life >= b.maxLife) {
+      scene.remove(b.sprite);
+      b.sprite.material.map.dispose();
+      activeSpeechBubbles.splice(i, 1);
+      continue;
+    }
+    const fadeStart = b.maxLife - 1.0;
+    if (b.life > fadeStart) {
+      b.sprite.material.opacity = 1 - (b.life - fadeStart);
+    }
+  }
+}
+
+async function callClaudeForEnemyResponse(playerText) {
+  const key = getClaudeApiKey();
+  if (!key) return null;
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 60,
+        system: 'You are a battle enemy in a 3D action shooter game. The player is fighting you. Respond to what they say with a short, cocky, trash-talking comeback — the kind of banter rivals exchange mid-fight. Keep it under 12 words. Be bold, funny, and confident. No profanity.',
+        messages: [{ role: 'user', content: playerText }],
+      }),
+    });
+    if (!res.ok) {
+      if (res.status === 401) {
+        localStorage.removeItem('sniperstrike-claude-key');
+        showMessage('Invalid API key — cleared. Press 🎤 again to re-enter.');
+      }
+      return null;
+    }
+    const data = await res.json();
+    return data.content?.[0]?.text?.trim() || null;
+  } catch (e) {
+    console.warn('Voice API error:', e);
+    return null;
+  }
+}
+
+function speakEnemyResponse(text) {
+  return new Promise((resolve) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.pitch = 0.5;   // deep, menacing
+    utterance.rate = 1.05;   // confident, slightly fast
+    utterance.volume = 1.0;
+
+    // Pick a deep English male voice if available
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v =>
+      /david|mark|daniel|fred|albert|james|rishi/i.test(v.name) && v.lang.startsWith('en')
+    ) || voices.find(v => v.lang.startsWith('en-'));
+    if (preferred) utterance.voice = preferred;
+
+    utterance.onend = () => resolve();
+    utterance.onerror = () => resolve();
+
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  });
+}
+
+function getNearestLivingEnemy() {
+  let nearest = null;
+  let nearestDist = Infinity;
+  for (const e of enemies) {
+    if (e.health <= 0) continue;
+    const d = e.position.distanceTo(playerBody.position);
+    if (d < nearestDist) { nearestDist = d; nearest = e; }
+  }
+  return nearest;
+}
+
+function setupVoiceRecognition() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    showMessage('Voice not supported — try Chrome or Edge.');
+    return null;
+  }
+  const rec = new SR();
+  rec.continuous = false;
+  rec.interimResults = false;
+  rec.lang = 'en-US';
+
+  rec.onresult = async (event) => {
+    const transcript = event.results[0][0].transcript.trim();
+    if (!transcript || voiceBusy) return;
+    voiceBusy = true;
+    voiceBtn.classList.remove('voice-active');
+    voiceBtn.classList.add('voice-thinking');
+
+    spawnSpeechBubble(transcript, playerBody.position.clone(), true, 5);
+
+    const reply = await callClaudeForEnemyResponse(transcript);
+
+    voiceBtn.classList.remove('voice-thinking');
+    if (voiceListening) voiceBtn.classList.add('voice-active');
+    voiceBusy = false;
+
+    if (reply) {
+      const target = getNearestLivingEnemy();
+      const pos = target ? target.position.clone() : playerBody.position.clone().add(new THREE.Vector3(3, 0, -3));
+      spawnSpeechBubble(reply, pos, false, 5);
+      await speakEnemyResponse(reply); // wait for enemy to finish talking before listening again
+    }
+
+    if (voiceListening) {
+      try { rec.start(); } catch (e) {}
+    }
+  };
+
+  rec.onerror = (e) => {
+    if (e.error !== 'no-speech') {
+      console.warn('Speech recognition error:', e.error);
+      voiceBtn.classList.remove('voice-active', 'voice-thinking');
+      voiceListening = false;
+      voiceBusy = false;
+    }
+  };
+
+  rec.onend = () => {
+    if (voiceListening && !voiceBusy) {
+      try { rec.start(); } catch (e) {}
+    }
+  };
+
+  return rec;
+}
+
+voiceBtn.addEventListener('click', () => {
+  if (!voiceListening) {
+    const key = getClaudeApiKey();
+    if (!key) return;
+    if (!voiceRecognition) {
+      voiceRecognition = setupVoiceRecognition();
+      if (!voiceRecognition) return;
+    }
+    voiceListening = true;
+    voiceBtn.classList.add('voice-active');
+    voiceBtn.title = 'Stop talking (click to stop)';
+    try { voiceRecognition.start(); } catch (e) {}
+  } else {
+    voiceListening = false;
+    voiceBtn.classList.remove('voice-active', 'voice-thinking');
+    voiceBtn.title = 'Talk to enemies';
+    window.speechSynthesis.cancel();
+    try { voiceRecognition.stop(); } catch (e) {}
+  }
+});
 
 // Global error handlers to surface runtime exceptions in the overlay for debugging
 window.addEventListener('error', (e) => {

@@ -141,6 +141,30 @@ canvas {
   color: #fff;
 }
 
+#voice-btn {
+  pointer-events: auto;
+  border: none;
+  background: rgba(255,255,255,0.1);
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  font-size: 1rem;
+  cursor: pointer;
+  color: #fff;
+  transition: background 0.2s;
+}
+#voice-btn.voice-active {
+  background: rgba(220, 40, 40, 0.85);
+  animation: voice-pulse 1s ease-in-out infinite;
+}
+#voice-btn.voice-thinking {
+  background: rgba(255, 160, 0, 0.85);
+}
+@keyframes voice-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220,40,40,0.7); }
+  50% { box-shadow: 0 0 0 6px rgba(220,40,40,0); }
+}
+
 #emote-menu {
   position: relative;
   pointer-events: auto;

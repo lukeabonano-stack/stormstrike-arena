@@ -62,7 +62,7 @@
 
 ## localStorage key convention
 - **CRITICAL: Never rename existing keys** — doing so wipes player progress.
-- Existing keys: `sniperstrike-coins`, `sniperstrike-inventory`, `sniperstrike-equipped`, `sniperstrike-muted`, `sniperstrike-level`.
+- Existing keys: `sniperstrike-coins`, `sniperstrike-inventory`, `sniperstrike-equipped`, `sniperstrike-muted`, `sniperstrike-level`, `sniperstrike-claude-key`.
 - All new keys must use the `sniperstrike-` prefix.
 
 ## Vatican map — congregation behavior
@@ -88,16 +88,18 @@
 - `#emote-button` — opens emote flyout menu.
 - Armory tabs: Weapons, Skins, Clothes, Armor, Emotes, VIP.
 
-## Pending feature: Voice-to-text enemy conversation
-- **NOT YET IMPLEMENTED** — this is the next task.
-- A microphone button (`#voice-btn`) should appear next to `#vip-toggle-button` in the HUD.
-- When pressed: activates Web Speech API (`SpeechRecognition`) for voice-to-text.
-- Player speech is displayed as floating text above the player.
-- Text is sent to Claude API (`claude-haiku-4-5-20251001` for speed) with a system prompt establishing "battle enemy trash-talk" persona.
-- Enemy response is displayed as a floating speech bubble above the nearest living enemy.
-- The conversation should be dynamic — if player says "you won't beat me", enemy responds with a comeback.
-- Button toggles listening on/off with visual feedback (e.g., red pulsing when active).
-- Requires a Claude API key — likely needs to be configurable or prompted.
+## Voice-to-text enemy conversation (IMPLEMENTED)
+- `#voice-btn` (🎤) sits in the HUD right after `#vip-toggle-button`.
+- Click to toggle listening; button pulses red while listening, turns orange while waiting for API.
+- Uses Web Speech API (`SpeechRecognition`) — works in Chrome/Edge; shows error in unsupported browsers.
+- Player speech appears as a blue speech bubble above the player (5 seconds).
+- Enemy reply appears as a red speech bubble above the nearest living enemy (5 seconds).
+- `callClaudeForEnemyResponse(text)` sends to `claude-haiku-4-5-20251001` with a trash-talk battle persona.
+- API key stored in `localStorage` under key `sniperstrike-claude-key`; prompts once if missing.
+- Invalid key (401) clears the stored key and shows a message; next mic press re-prompts.
+- `activeSpeechBubbles` array + `updateSpeechBubbles(dt)` (called from `updateEffects`) manages bubble lifetime and fade-out.
+- `createSpeechBubbleTexture(text, isPlayer)` — 512×152 canvas with rounded bubble, tail, word-wrapped text.
+- `getNearestLivingEnemy()` — scans `enemies[]` array for closest enemy with `health > 0`.
 
 ## Technical stack and patterns
 - Three.js r164 via ESM CDN import.
