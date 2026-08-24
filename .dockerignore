@@ -1,13 +1,6 @@
+# Speeds up the build-context upload only — the Dockerfile COPYs specific
+# files/dirs by name, so nothing here can accidentally break a COPY the way
+# excluding nginx.conf once did (see Dockerfile comment).
 .git
 .claude
 node_modules
-*.md
-Dockerfile
-docker-compose.yaml
-nginx.conf
-.dockerignore
-app
-server.py
-main.js
-package.json
-package-lock.json
