@@ -7,7 +7,7 @@ services:
       - .:/usr/share/nginx/html:ro
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.weapon_strike_arena.rule=Host(`weapon-strike-arena.chazmar.com`)"
+      - "traefik.http.routers.weapon_strike_arena.rule=Host(`luke.chazmar.com`)"
       - "traefik.http.routers.weapon_strike_arena.entrypoints=websecure"
       - "traefik.http.routers.weapon_strike_arena.tls.certresolver=letsencrypt"
 
