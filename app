@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 ## Collection of convenience commands to run a basic web app ##
 app_name="weapon_strike_arena"
