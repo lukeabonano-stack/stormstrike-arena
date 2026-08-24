@@ -13,5 +13,3 @@
 7. So when you press the button that says armory on it, it brings you to the home screen instead of that button saying armory on it I wanted to say Home screen with all of your supplies.
 
 8. So I want the armor that the main character will get actually deflectable it. I don't want it to just be a suit of armor that doesn't do anything.
-
-9. 
