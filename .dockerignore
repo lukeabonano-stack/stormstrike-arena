@@ -1,0 +1,13 @@
+.git
+.claude
+node_modules
+*.md
+Dockerfile
+docker-compose.yaml
+nginx.conf
+.dockerignore
+app
+server.py
+main.js
+package.json
+package-lock.json

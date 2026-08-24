@@ -1,10 +1,8 @@
 services:
   weapon_strike_arena:
-    image: nginx:alpine
+    build: .
     ports:
       - "8088:80"
-    volumes:
-      - .:/usr/share/nginx/html:ro
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.weapon_strike_arena.rule=Host(`luke.chazmar.com`)"

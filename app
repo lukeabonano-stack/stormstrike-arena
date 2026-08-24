@@ -54,8 +54,8 @@ if [ "${command}" == "destructive_clean" ]; then
 
 elif [ "${command}" == "start" ]; then
 
-    log info 'docker compose up -d'
-    docker compose up -d
+    log info 'docker compose up -d --build'
+    docker compose up -d --build
 
 elif [ "${command}" == "stop" ]; then
 
