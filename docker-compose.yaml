@@ -1,0 +1,14 @@
+services:
+  weapon_strike_arena:
+    image: nginx:alpine
+    ports:
+      - "8088:80"
+    volumes:
+      - .:/usr/share/nginx/html:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.weapon_strike_arena.rule=Host(`weapon-strike-arena.chazmar.com`)"
+      - "traefik.http.routers.weapon_strike_arena.entrypoints=websecure"
+      - "traefik.http.routers.weapon_strike_arena.tls.certresolver=letsencrypt"
+
+  
