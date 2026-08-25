@@ -234,6 +234,41 @@ export function clearFog(): void
 - VIP-only items: `karat24` armor, `goldenMinigun` skin, `titanroar` emote.
 - `renderVipTab()` in `armory/index.js` renders all vipOnly items in the VIP tab.
 
+## Deployment / Docker (nginx at luke.chazmar.com)
+`./app start` → `docker compose up -d --build`; traefik terminates TLS. The image is built
+by `Dockerfile` (2 stages) and served by `nginx.conf`. Everything here exists because the
+deployed build was slow while localhost was fast — an over-the-wire payload problem that a
+localhost server can never surface. Measured at 20 Mbps: **43.3 MB / 21.3 s → 9.95 MB / 6.2 s**.
+- **Compression**: `gzip_static on` + `gzip on` fallback in nginx.conf; the Dockerfile
+  precompresses `.js/.css/.html/.gltf/.bin/.json/.env` with `gzip -9 -k` at build time.
+  glTF is JSON and compresses ~27x (AnimationLibrary.gltf 2.46 MB → 92 KB); the 52 unbundled
+  ES modules go 656 KB → 162 KB. **PNG is deliberately NOT gzipped** — already DEFLATE'd
+  internally, so it costs CPU for ~0 bytes. `-k` keeps the plain file, which `gzip_static`
+  needs for clients that send no `Accept-Encoding`.
+- **Texture downscale (build stage only)**: the Quaternius pack ships 2048² PNGs (normal maps
+  ~3.7 MB each) which were 91% of the download once compression was on. Stage 1 (`alpine` +
+  imagemagick) runs `mogrify -resize '1024x1024>'` over PNGs >512k. The **repo keeps the
+  full-res originals** — only the shipped copy shrinks. `1024x1024>` is shrink-only, so the
+  256² eye textures pass through untouched. Verified visually identical in the armory preview.
+  To revert: drop stage 1 and point the assets COPY back at the build context.
+- **GOTCHA — Babylon rejects `../` in glTF image URIs.** The hair textures ship as byte-identical
+  duplicates under both `quaternius/` and `quaternius/hair/` (~11 MB downloaded twice). The fix
+  is to point the two body glTFs at the `hair/` copies — a FORWARD subdirectory path. Rewriting
+  the `hair/*.gltf` to reach *up* with `../T_Hair_1_Normal.png` instead fails hard with
+  `/images/0/uri: '../…' is invalid`, which sets `assetsReady = false` and silently drops the
+  whole game to primitive rigs. Canonical copies must live at or below the referencing glTF.
+- The now-unreferenced duplicate PNGs are kept on disk on purpose: `/assets/` is served with
+  `max-age=86400`, so a returning player can hold a day-old glTF that still names the old URL.
+  Safe to delete after a day has passed since the deploy.
+- **Loading is fan-out, not a chain.** `preloadAssets` uses a 6-wide worker pool, and the
+  `spawnCityProps`/`spawnGraveyardProps`/`spawnSpaceProps` map loaders start every `loadProp`
+  up front and then place them in spec order. Awaiting inside those loops cost one full RTT
+  per asset — invisible on localhost, but it is what made the map trickle in instead of
+  appearing built. Keep new asset loops fanned out.
+- Verify a deploy with a throttled headless run, not just a local page load — that is the only
+  way this class of regression shows up. Chrome via
+  `chromium.launch({channel:'chrome'})` + CDP `Network.emulateNetworkConditions`.
+
 ## Technical stack
 - Babylon.js from `https://cdn.babylonjs.com/babylon.js` (UMD global `BABYLON.*`), loaded before ES modules.
 - `DefaultRenderingPipeline`: bloom (threshold 0.78, weight 0.28), FXAA, ACES tone mapping, vignette.
