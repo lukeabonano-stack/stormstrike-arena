@@ -103,9 +103,16 @@ async function spawnCityProps(root) {
     { path: 'assets/models/props/city/car_police.gltf', pos: [6, 0, 100],   targetH: 1.6 },
     { path: 'assets/models/props/city/car_taxi.gltf',   pos: [-6, 0, 100],  targetH: 1.6 },
   ];
-  for (const spec of specs) {
+  // Start every fetch up front, then place them in spec order as they land.
+  // Awaiting inside the loop made each prop wait a full round trip for the
+  // one before it — unnoticeable on localhost, but over the wire it is why
+  // the map visibly trickled in instead of appearing built. loadProp caches
+  // its promise and resolves null on failure, so this stays safe to fan out.
+  const pending = specs.map(spec => loadProp(spec.path));
+  for (let i = 0; i < specs.length; i++) {
+    const spec = specs[i];
     try {
-      const container = await loadProp(spec.path);
+      const container = await pending[i];
       if (gs.mapId !== 'metro' || root.isDisposed()) continue;
       if (!container) { console.warn('[metro] no container for', spec.path); continue; }
       const node = instantiateProp(container);
