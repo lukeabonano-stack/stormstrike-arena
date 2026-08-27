@@ -831,6 +831,63 @@ canvas {
 #crosshair::before { width: 14px; height: 2px; top: 6px; left: 0; }
 #crosshair::after  { width: 2px; height: 14px; top: 0; left: 6px; }
 
+/* ── Mobile touch controls ─────────────────────────────────────────────────────
+   Shown only on touch devices (controls.js toggles the `hidden` class via the
+   isMobile flag). Movement zone must stay pointer-events:none — it's purely a
+   visual label for the left ~35% tap-and-hold-to-walk area the canvas's own
+   touch listeners already handle; giving it real hit-testing would just
+   create a second, competing target for the same touch. */
+#mobile-move-zone {
+  position: fixed;
+  left: 0; top: 0; bottom: 0;
+  width: 35vw;
+  pointer-events: none;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#mobile-move-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 22px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 20px;
+  letter-spacing: 0.05em;
+  user-select: none;
+}
+#mobile-move-label {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+#mobile-fire-btn {
+  position: fixed;
+  right: 26px; bottom: 26px;
+  width: 84px; height: 84px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  background: radial-gradient(circle at 35% 30%, rgba(255, 90, 60, 0.9), rgba(180, 20, 20, 0.85));
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  font-size: 32px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 65;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#mobile-fire-btn:active {
+  background: radial-gradient(circle at 35% 30%, rgba(255, 120, 90, 1), rgba(220, 30, 30, 0.95));
+  transform: scale(0.94);
+}
+
 /* ── Laser dot (enemy sniper targeting) ──────────────────────────────────────── */
 .laser-dot {
   position: absolute;

@@ -1,5 +1,5 @@
 // ── controls.js  Keyboard/mouse/touch input + player movement ─────────────────
-import { scene, camera, getHeightAtXZ } from './engine.js';
+import { scene, camera, getHeightAtXZ, isMobile } from './engine.js';
 import { gs, player, equipped } from './state.js';
 import { playerBody, playerArmLeft, playerArmRight, playerLegLeft, playerLegRight,
          playerGun, playerHead, getPlayerRig } from './player.js';
@@ -13,6 +13,13 @@ import { tryClickChest, isChestAtScreen } from './chests.js';
 // ── Aim rotation (exported for camera + bullet direction) ─────────────────────
 export const aimRotation = { x: 0, y: 0 };
 setAimRotation(aimRotation);
+
+// The default hint text describes desktop-only controls (WASD/mouse) —
+// actively misleading on a touch device with none of those.
+if (isMobile) {
+  const statusEl = document.getElementById('status');
+  if (statusEl) statusEl.textContent = 'Left side: hold to walk • Right side: drag to aim • 🔫 to fire';
+}
 
 // ── Key state ─────────────────────────────────────────────────────────────────
 const keys = {};
@@ -64,9 +71,28 @@ function _getAimDir(clientX, clientY) {
   )).normalize();
 }
 
+// Touching the canvas on mobile is ALWAYS movement/look, never a shot — the
+// dedicated #mobile-fire-btn (see the Touch/mobile section below) is the
+// only way to fire on a touch device. Every pointerdown/pointermove handler
+// that can trigger a shot below is gated through this. Mouse/pen input is
+// never affected, so desktop's "click anywhere on the canvas to shoot" is
+// completely unchanged.
+//
+// This used to be a narrower "only exclude the left 35% movement zone"
+// check, which still let dragging the right side to look around also fire
+// the gun the whole time (matching desktop's click-and-hold-to-fire
+// convention) — but on a real device that read as "bullets are
+// automatically shooting" any time the player so much as turned to look,
+// since there was no way to look without also holding fire. A dedicated
+// button removes that ambiguity entirely.
+function _isTouch(e) {
+  return e.pointerType === 'touch';
+}
+
 function tryShoot(e) {
   if (e.button !== 0 && e.button !== undefined) return;
   if (!gs.started || player.health <= 0 || gs.paused) return;
+  if (_isTouch(e)) return;
   const uiHit = e.target?.closest?.(
     '#hud, #elev-panel-ui, #armory-screen, #start-screen, #map-picker-screen, ' +
     '#pause-screen, #stats-screen, #achievements-screen, button, [role="button"]'
@@ -100,19 +126,57 @@ document.addEventListener('pointerup', e => {
   if (e.button === 2 && window.__setAdsZoom) window.__setAdsZoom(0);
 });
 
-// ── Minigun auto-fire ─────────────────────────────────────────────────────────
-let _mouseHeld = false;
+// ── Minigun / hold-to-fire auto-fire (desktop mouse only — see _isTouch) ─────
+// Tracked per-pointer (not a single shared boolean) so a stray extra pointer
+// down/up pair can't leave firing stuck on or turned off under someone
+// else's finger. Touch is excluded entirely; #mobile-fire-btn below is its
+// own independent held-tracking for the same handleControls auto-fire block.
+const _firePointers = new Set();
 let _lastMouseX = window.innerWidth / 2;
 let _lastMouseY = window.innerHeight / 2;
 
-canvas.addEventListener('pointerdown', e => { if (e.button === 0) _mouseHeld = true; }, { capture: true });
-document.addEventListener('pointerup',  e => { if (e.button === 0) _mouseHeld = false; });
+canvas.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  if (_isTouch(e)) return;
+  _firePointers.add(e.pointerId);
+}, { capture: true });
+document.addEventListener('pointerup',     e => { _firePointers.delete(e.pointerId); });
+document.addEventListener('pointercancel', e => { _firePointers.delete(e.pointerId); });
 document.addEventListener('pointermove', e => {
+  if (_isTouch(e)) return;
   _lastMouseX = e.clientX; _lastMouseY = e.clientY;
   if (!gs.started || gs.paused) { _hoveringChest = false; return; }
   _hoveringChest = isChestAtScreen(e.clientX, e.clientY);
   if (_cv) _cv.style.cursor = _hoveringChest ? 'pointer' : 'crosshair';
 });
+
+// ── Mobile fire button — the ONLY way to shoot on a touch device ────────────
+// A real, separate DOM element layered on top of the canvas: a touch that
+// starts on this button targets IT, not the canvas underneath, so it can
+// never also register as a canvas move/look touch (and vice versa) — no
+// zone-math or stopPropagation needed, that's just how touch hit-testing
+// works. Shoots with no direction override, which spawnPlayerBullet (see
+// combat.js) resolves from the current aimRotation-facing direction — the
+// same fallback used for keyboard-only "hold fire, aim with arrow keys" play.
+let _touchFireHeld = false;
+const _mobileFireBtn = document.getElementById('mobile-fire-btn');
+if (_mobileFireBtn) {
+  if (isMobile) {
+    document.getElementById('mobile-move-zone')?.classList.remove('hidden');
+    _mobileFireBtn.classList.remove('hidden');
+  }
+  const fireOnce = () => {
+    if (!gs.started || player.health <= 0 || gs.paused) return;
+    spawnPlayerBullet();
+  };
+  _mobileFireBtn.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    _touchFireHeld = true;
+    fireOnce();
+  });
+  _mobileFireBtn.addEventListener('pointerup',     () => { _touchFireHeld = false; });
+  _mobileFireBtn.addEventListener('pointercancel', () => { _touchFireHeld = false; });
+}
 
 // ── Touch / mobile ────────────────────────────────────────────────────────────
 // Left ~35% of the screen: tap-and-hold upper/lower half to walk forward/back
@@ -267,7 +331,7 @@ export function handleControls(dt) {
 
   // Auto-fire + minigun barrel spin
   const isMinigun = player.weaponKey === 'minigun';
-  if (_mouseHeld && !gs.paused) {
+  if ((_firePointers.size > 0 || _touchFireHeld) && !gs.paused) {
     spawnPlayerBullet(_getAimDir(_lastMouseX, _lastMouseY));
     if (isMinigun && playerGun?.barrelGroup) {
       playerGun.barrelGroup.rotation.z += dt * 28;

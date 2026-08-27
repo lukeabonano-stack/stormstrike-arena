@@ -23,6 +23,20 @@
     <!-- ── Crosshair ── -->
     <div id="crosshair"></div>
 
+    <!-- ── Mobile touch controls (shown only on touch devices — see controls.js) ──
+         Movement zone is a passive visual cue only (pointer-events: none —
+         the canvas's own touch listeners handle the actual input underneath
+         it); the fire button is a real, separate element so a touch that
+         taps it can never also register as a canvas touch (walk/look). -->
+    <div id="mobile-move-zone" class="hidden">
+      <div id="mobile-move-hint">
+        <span>▲</span>
+        <span id="mobile-move-label">MOVE</span>
+        <span>▼</span>
+      </div>
+    </div>
+    <button id="mobile-fire-btn" class="hidden" aria-label="Fire">🔫</button>
+
     <!-- ── Hitmarker (flashes on hit/headshot) ── -->
     <div id="hitmarker">
       <span class="hm-l"></span><span class="hm-r"></span>
