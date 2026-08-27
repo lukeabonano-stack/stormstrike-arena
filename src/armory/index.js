@@ -6,7 +6,7 @@ import { ARMOR_DEFS, buildArmorMesh, getArmorMaterial } from './armor.js';
 import { SKIN_DEFS } from './skins.js';
 import { CLOTHES_DEFS } from './clothes.js';
 import { EMOTE_DEFS, applyEmotePose } from './emotes.js';
-import { previewRig, applyPlayerArmor, setPlayerWeapon, applyPlayerClothes } from '../player.js';
+import { previewRig, applyPlayerArmor, setPlayerWeapon, applyPlayerClothes, ensurePreviewRigReady } from '../player.js';
 import { previewScene, previewEngine } from '../engine.js';
 
 // ── Armory state ──────────────────────────────────────────────────────────────
@@ -392,6 +392,9 @@ export function openArmory(focusTab) {
   startPreviewLoop();
   document.exitPointerLock?.();
   import('../audio.js').then(m => m.playArmoryOpen());
+  // Mobile-only: lazily load + build the preview rig on first open, then
+  // re-render so the tab reflects it instead of the primitive fallback.
+  ensurePreviewRigReady().then(() => renderTab());
 }
 
 export function closeArmory() {

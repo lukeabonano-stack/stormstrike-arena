@@ -1,6 +1,13 @@
 // ── engine.js  Babylon.js engine bootstrap + shared mesh / material helpers ──
 // BABYLON is a global loaded by the CDN <script> tag in index.html.
 
+// Touch/mobile devices have far less GPU memory headroom than a laptop —
+// used to skip non-essential upfront work (e.g. eagerly loading the armory
+// preview scene's character assets before the player has even opened the
+// Home Screen) on those devices specifically, without changing desktop
+// behavior at all.
+export const isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+
 const canvas = document.getElementById('renderCanvas');
 export const engine = new BABYLON.Engine(canvas, true, {
   preserveDrawingBuffer: true,

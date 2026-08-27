@@ -9,7 +9,7 @@
 // clips onto each character instance by a static DEF-→UE bone-name map (rest
 // poses are identical, so no orientation correction is needed — verified).
 
-import { scene, previewScene } from './engine.js';
+import { scene, previewScene, isMobile } from './engine.js';
 
 // ── Manifests ─────────────────────────────────────────────────────────────────
 const BASE_BODIES = {
@@ -97,26 +97,39 @@ async function _loadInto(sc, url) {
   return BABYLON.SceneLoader.LoadAssetContainerAsync('', url, sc);
 }
 
+function _jobsFor(sc) {
+  const jobs = [{ sc, kind: 'anim', url: ANIM_LIB_URL }];
+  for (const [k, url] of Object.entries(BASE_BODIES)) jobs.push({ sc, kind: 'body', key: k, url });
+  for (const [k, url] of Object.entries(HAIR))        jobs.push({ sc, kind: 'hair', key: k, url });
+  return jobs;
+}
+
+async function _runJobs(jobs, onProgress) {
+  let done = 0;
+  for (const j of jobs) {
+    const c = await _loadInto(j.sc, j.url);
+    const st = _store(j.sc);
+    if (j.kind === 'anim') { c.meshes.forEach(m => m.setEnabled(false)); st.anim = c; }
+    else if (j.kind === 'body') st.bodies.set(j.key, c);
+    else st.hair.set(j.key, c);
+    if (++done && onProgress) onProgress(done / jobs.length);
+  }
+}
+
 // ── Preload ───────────────────────────────────────────────────────────────────
 export async function preloadAssets(onProgress) {
   if (!BABYLON.SceneLoader) { console.warn('[assets] loaders missing'); return false; }
-  const scenes = [scene, previewScene];
-  const jobs = [];
-  for (const sc of scenes) {
-    jobs.push({ sc, kind: 'anim', url: ANIM_LIB_URL });
-    for (const [k, url] of Object.entries(BASE_BODIES)) jobs.push({ sc, kind: 'body', key: k, url });
-    for (const [k, url] of Object.entries(HAIR))        jobs.push({ sc, kind: 'hair', key: k, url });
-  }
-  let done = 0;
+  // Touch devices skip the armory-preview scene's copy here (see isMobile in
+  // engine.js) — loading the full character/hair asset set into BOTH scenes
+  // unconditionally at page load nearly doubles upfront GPU/texture memory
+  // pressure before the player has even started playing, on hardware with a
+  // lot less headroom than a laptop. It loads lazily via
+  // ensurePreviewAssetsLoaded() the first time the Home Screen is opened
+  // instead. Desktop is unaffected — same eager double-load as before.
+  const scenes = isMobile ? [scene] : [scene, previewScene];
+  const jobs = scenes.flatMap(_jobsFor);
   try {
-    for (const j of jobs) {
-      const c = await _loadInto(j.sc, j.url);
-      const st = _store(j.sc);
-      if (j.kind === 'anim') { c.meshes.forEach(m => m.setEnabled(false)); st.anim = c; }
-      else if (j.kind === 'body') st.bodies.set(j.key, c);
-      else st.hair.set(j.key, c);
-      if (++done && onProgress) onProgress(done / jobs.length);
-    }
+    await _runJobs(jobs, onProgress);
   } catch (e) {
     console.warn('[assets] load failed — primitive rigs:', e && e.message);
     return false;
@@ -126,6 +139,19 @@ export async function preloadAssets(onProgress) {
   console.log(`[assets] Quaternius ready: ${st.bodies.size} bodies, ${st.hair.size} hairstyles, ` +
               `${st.anim ? st.anim.animationGroups.length : 0} animations`);
   return true;
+}
+
+// ── Lazy preview-scene load (mobile only — see preloadAssets above) ──────────
+let _previewAssetsPromise = null;
+export async function ensurePreviewAssetsLoaded() {
+  if (!isMobile) return true;               // already eagerly loaded by preloadAssets
+  if (!assetsReady) return false;           // main scene load failed — no point loading preview either
+  if (_store(previewScene).anim) return true;
+  if (_previewAssetsPromise) return _previewAssetsPromise;
+  _previewAssetsPromise = _runJobs(_jobsFor(previewScene))
+    .then(() => true)
+    .catch(e => { console.warn('[assets] preview asset load failed:', e && e.message); return false; });
+  return _previewAssetsPromise;
 }
 
 // Cache normalization scale per body key.

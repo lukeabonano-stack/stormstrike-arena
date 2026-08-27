@@ -115,17 +115,27 @@ document.addEventListener('pointermove', e => {
 });
 
 // ── Touch / mobile ────────────────────────────────────────────────────────────
-let touchLeft = false, touchRight = false, touchUp = false, touchDown = false;
+// Left ~35% of the screen: tap-and-hold upper/lower half to walk forward/back
+// (tracked by its own touch identifier — touchMoveId). Right side: drag to
+// look/turn (tracked separately by touchAimId). Two independent fingers, two
+// independent identifiers — touchend/touchcancel below only ever clears the
+// state for the SPECIFIC finger that lifted, never both, so releasing the
+// look-finger (e.g. to tap-shoot) can no longer stop the move-finger's input
+// mid-stride, which is what made movement feel "glitchy".
+let touchUp = false, touchDown = false;
+let touchMoveId = null;
 let touchAimId = null, touchLastX = 0, touchLastY = 0;
 
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
   for (const t of e.changedTouches) {
     const lx = t.clientX / window.innerWidth;
-    if (lx < 0.35) {
+    if (lx < 0.35 && touchMoveId === null) {
       const ly = t.clientY / window.innerHeight;
-      if (ly < 0.5) touchUp = true; else touchDown = true;
-    } else {
+      touchUp = ly < 0.5;
+      touchDown = !touchUp;
+      touchMoveId = t.identifier;
+    } else if (touchAimId === null) {
       touchAimId = t.identifier;
       touchLastX = t.clientX; touchLastY = t.clientY;
     }
@@ -136,7 +146,14 @@ canvas.addEventListener('touchmove', e => {
   e.preventDefault();
   for (const t of e.changedTouches) {
     if (t.identifier === touchAimId) {
-      aimRotation.y -= (t.clientX - touchLastX) * 0.003;
+      // Drag right → turn right (matches the established ArrowRight
+      // convention: aimRotation.y += turns right, -= turns left). This was
+      // previously inverted (-=), which made every mobile drag turn the
+      // opposite way the player dragged — the root cause behind "moving
+      // right moves left" and "forward goes backward" (once the view is
+      // spun around by a few backwards corrections, the forward tap zone
+      // walks you toward where you came from).
+      aimRotation.y += (t.clientX - touchLastX) * 0.003;
       aimRotation.x -= (t.clientY - touchLastY) * 0.003;
       aimRotation.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 4, aimRotation.x));
       touchLastX = t.clientX; touchLastY = t.clientY;
@@ -144,10 +161,17 @@ canvas.addEventListener('touchmove', e => {
   }
 }, { passive: false });
 
-canvas.addEventListener('touchend', () => {
-  touchUp = false; touchDown = false; touchLeft = false; touchRight = false;
-  touchAimId = null;
-});
+function _touchRelease(e) {
+  for (const t of e.changedTouches) {
+    if (t.identifier === touchMoveId) { touchUp = false; touchDown = false; touchMoveId = null; }
+    if (t.identifier === touchAimId)  { touchAimId = null; }
+  }
+}
+canvas.addEventListener('touchend', _touchRelease);
+// iOS fires touchcancel (not touchend) when a touch is interrupted by a
+// system gesture (e.g. edge-swipe for Control Center) — without this the
+// move/aim finger could get "stuck" held down forever.
+canvas.addEventListener('touchcancel', _touchRelease);
 
 // ── Footstep sound timer ──────────────────────────────────────────────────────
 let footstepTimer = 0;
@@ -169,10 +193,10 @@ export function handleControls(dt) {
 
   const speed = player.speed * player.speedMultiplier;
 
-  // Arrow Left/Right: turn
+  // Arrow Left/Right: turn (touch turns via the look-drag handler above)
   const TURN_SPEED = 2.4;
-  if (keys['ArrowLeft']  || touchLeft)  aimRotation.y -= TURN_SPEED * dt;
-  if (keys['ArrowRight'] || touchRight) aimRotation.y += TURN_SPEED * dt;
+  if (keys['ArrowLeft'])  aimRotation.y -= TURN_SPEED * dt;
+  if (keys['ArrowRight']) aimRotation.y += TURN_SPEED * dt;
 
   const sin = Math.sin(aimRotation.y);
   const cos = Math.cos(aimRotation.y);

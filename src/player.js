@@ -1,5 +1,5 @@
 // ── player.js  Character rig, player init, VIP, armor ────────────────────────
-import { scene, previewScene, box, cyl, sph, capsule, grp, cloneM, pbr, c3, addShadow } from './engine.js';
+import { scene, previewScene, isMobile, box, cyl, sph, capsule, grp, cloneM, pbr, c3, addShadow } from './engine.js';
 import { player, gs, equipped, inventory, GIANT_SCALE, saveEquipped } from './state.js';
 import { WEAPON_DEFS, rebuildGunVisual } from './armory/weapons.js';
 import { ARMOR_DEFS, buildArmorMesh } from './armory/armor.js';
@@ -550,7 +550,18 @@ export async function upgradePlayerRigVisual() {
   playerParts.legRight = _riggedRig.legRight;
   playerParts.head     = _riggedRig.head;
 
-  // Armory preview gets the same hero
+  // Armory preview gets the same hero — on mobile this is deferred (see
+  // ensurePreviewRigReady below) rather than built here, since its assets
+  // aren't eagerly preloaded into previewScene on those devices.
+  if (!isMobile) await _buildPreviewRig();
+
+  // Apply the currently-equipped outfit to the new rigs.
+  _applyPlayerOutfit();
+  return _riggedRig;
+}
+
+async function _buildPreviewRig() {
+  if (_previewRiggedRig) return _previewRiggedRig;
   try {
     const { attachRiggedToBody: attach2 } = await import('./character.js');
     _previewRiggedRig = attach2(previewRig.bodyGroup, {
@@ -563,8 +574,19 @@ export async function upgradePlayerRigVisual() {
       _previewRiggedRig.playAnim('pistolIdle');   // preview never runs controls.js — set the pose once here
     }
   } catch (_e) { /* preview upgrade is cosmetic-only */ }
+  return _previewRiggedRig;
+}
 
-  // Apply the currently-equipped outfit to the new rigs.
+// Mobile-only: the Home Screen calls this on open so the preview rig's
+// assets (skipped by the eager preloadAssets pass on touch devices) load on
+// demand instead of never, or at page load. No-op on desktop (already built
+// eagerly above) and if the rigged upgrade never applied at all (primitive
+// fallback / classic-rigs mode) — the primitive preview still works either way.
+export async function ensurePreviewRigReady() {
+  if (!isMobile || !_riggedRig || _previewRiggedRig) return;
+  const { ensurePreviewAssetsLoaded } = await import('./assets.js');
+  const ok = await ensurePreviewAssetsLoaded();
+  if (!ok) return;
+  await _buildPreviewRig();
   _applyPlayerOutfit();
-  return _riggedRig;
 }
